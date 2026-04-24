@@ -1,0 +1,356 @@
+{
+  "name": "FluxoBásicoAssistenteFinanceiro",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "responseNodes"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -64
+      ],
+      "id": "15be8cee-32e0-475d-a2ee-398df4ec6e64",
+      "name": "When chat message received",
+      "webhookId": "59db0312-83ce-4117-838e-1bee99940877"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.chatInput }}\n\nExtraia os dados da mensagem acima e retorne APENAS um JSON válido, sem texto adicional, sem explicação, sem markdown, exatamente nesse formato:\n\n{\"valor\": 100, \"moeda\": \"BRL\", \"categoria\": \"restaurante\"}\n\nRegras:\n- valor: sempre número, sem símbolo\n- moeda: sempre \"BRL\" ou \"USD\"\n- categoria: sempre em português, letra minúscula"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        -64
+      ],
+      "id": "c3935cc6-67b6-4892-b110-86f4cc3c5ca2",
+      "name": "Message a model",
+      "alwaysOutputData": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "dwHoUGOdQP6jknOl",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const texto = $input.first().json.output[0].content[0].text;\nconst dados = JSON.parse(texto);\nreturn [{ json: dados }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -64
+      ],
+      "id": "ca4e4c8f-b434-465a-8865-7743d0af5e84",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL?token=0f76372d100e5d588d80606e2ee5a141dabd056a9be64a5190fb5673a6073922",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        848,
+        -64
+      ],
+      "id": "b28c17c9-07b1-478f-95f2-93b004f4478d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d956d3e5-f330-4e20-a7fa-2e364c23056c",
+              "leftValue": "={{ $('Code in JavaScript').item.json.moeda }}",
+              "rightValue": "=USD",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        -64
+      ],
+      "id": "0de55f01-aaab-48a6-8d47-b0b33ccfe29e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cotacao = $('HTTP Request').first().json.USDBRL.bid;\nconst valor = $('Code in JavaScript').first().json.valor;\nconst valorConvertido = (valor * parseFloat(cotacao)).toFixed(2);\n\nreturn [{ json: {\n    valor_original: valor,\n    moeda_original: \"USD\",\n    valor_real: parseFloat(valorConvertido),\n    categoria: $('Code in JavaScript').first().json.categoria\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -160
+      ],
+      "id": "7d1ce517-b536-452f-b09a-2f1e56acd5f6",
+      "name": "ConverterTrueJSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "const valor = $('Code in JavaScript').first().json.valor;\nconst categoria = $('Code in JavaScript').first().json.categoria;\n\nreturn [{ json: {\n    valor_original: valor,\n    moeda_original: \"BRL\",\n    valor_real: valor,\n    categoria: categoria\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        32
+      ],
+      "id": "e60e48e8-f785-4d45-93dd-65cab663d818",
+      "name": "ConverterFalseJSON"
+    },
+    {
+      "parameters": {
+        "tableId": "gastos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "valor_original",
+              "fieldValue": "={{ $json.valor_original }}"
+            },
+            {
+              "fieldId": "moeda_original",
+              "fieldValue": "={{ $json.moeda_original }}"
+            },
+            {
+              "fieldId": "valor_real",
+              "fieldValue": "={{ $json.valor_real }}"
+            },
+            {
+              "fieldId": "categoria",
+              "fieldValue": "={{ $json.categoria }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        32
+      ],
+      "id": "4c4f06bc-000e-4964-ac3f-13c64de15d35",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "gHkhbnuV59jXlS8L",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "gastos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "valor_original",
+              "fieldValue": "={{ $json.valor_original }}"
+            },
+            {
+              "fieldId": "moeda_original",
+              "fieldValue": "={{ $json.moeda_original }}"
+            },
+            {
+              "fieldId": "valor_real",
+              "fieldValue": "={{ $json.valor_real }}"
+            },
+            {
+              "fieldId": "categoria",
+              "fieldValue": "={{ $json.categoria }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -160
+      ],
+      "id": "5a03178b-dd05-43e6-9bc7-ebb62e741804",
+      "name": "Create a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "gHkhbnuV59jXlS8L",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "message": "=✅ Gasto de R${{ $json.valor_real }} em {{ $json.categoria }} registrado com sucesso!",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1.3,
+      "position": [
+        1696,
+        -64
+      ],
+      "id": "5405cf4e-bdb3-4217-b24c-62ff66e6c663",
+      "name": "Chat",
+      "webhookId": "0ed52a02-a86a-48bc-b79e-520a9b4da034"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "ConverterTrueJSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ConverterFalseJSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ConverterFalseJSON": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ConverterTrueJSON": {
+      "main": [
+        [
+          {
+            "node": "Create a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row1": {
+      "main": [
+        [
+          {
+            "node": "Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6cf162a6-f6da-42a7-bb78-fe703f7f31db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5bd4b8ff1bba8a6677dce269b6257ff71a2cd9d3e259a9a4bb4b76aba0261c8b"
+  },
+  "id": "8mWHZFszO9P0QjP4",
+  "tags": []
+}
